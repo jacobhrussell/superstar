@@ -9,7 +9,7 @@ superstar session new --agent claude --dir ~/my/proj/src --name my-feature --pro
 ```
 - opens a new tmux session named `my-feature`
 - creates a git worktree and branch named `my-feature`
-- initializes the selected agnet
+- initializes the selected agent 
 - sends the initial prompt
 
 To clean it up:
