@@ -10,6 +10,7 @@ import (
 func resetProjectNewState() {
 	projectNewDir = ""
 	projectNewAgent = ""
+	projectNewGithub = ""
 	viper.Reset()
 }
 
