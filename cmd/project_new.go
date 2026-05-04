@@ -80,6 +80,8 @@ func promptProject(existing map[string]ProjectConfig) (name, dir, agent string, 
 				Validate(func(s string) error {
 					return validateNewProjectName(s, existing)
 				}),
+		),
+		huh.NewGroup(
 			huh.NewInput().
 				Title("Directory").
 				Value(&dir).
@@ -89,6 +91,8 @@ func promptProject(existing map[string]ProjectConfig) (name, dir, agent string, 
 					}
 					return nil
 				}),
+		),
+		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Agent").
 				Options(huh.NewOptions(validAgents...)...).
