@@ -14,7 +14,7 @@ func TestSessionNewAgentValidation(t *testing.T) {
 		wantErr    bool
 		wantAgent  string
 	}{
-		{"empty flag and viper", "", "", false, ""},
+		{"empty flag and viper", "", "", true, ""},
 		{"valid flag", "claude", "", false, "claude"},
 		{"invalid flag", "gpt", "", true, "gpt"},
 		{"flag overrides viper", "codex", "claude", false, "codex"},
@@ -26,9 +26,11 @@ func TestSessionNewAgentValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(func() {
 				sessionNewAgent = ""
+				sessionNewDir = ""
 				viper.Reset()
 			})
 
+			sessionNewDir = "/tmp/test"
 			sessionNewAgent = tt.flag
 			if tt.viperValue != "" {
 				viper.Set("default_agent", tt.viperValue)
@@ -46,5 +48,21 @@ func TestSessionNewAgentValidation(t *testing.T) {
 				t.Errorf("sessionNewAgent = %q, want %q", sessionNewAgent, tt.wantAgent)
 			}
 		})
+	}
+}
+
+func TestSessionNewDirRequired(t *testing.T) {
+	t.Cleanup(func() {
+		sessionNewAgent = ""
+		sessionNewDir = ""
+		viper.Reset()
+	})
+
+	sessionNewDir = ""
+	sessionNewAgent = "claude"
+
+	err := sessionNewCmd.PreRunE(sessionNewCmd, nil)
+	if err == nil {
+		t.Fatal("expected error when --dir is empty, got nil")
 	}
 }

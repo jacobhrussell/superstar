@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -20,11 +21,14 @@ var sessionNewCmd = &cobra.Command{
 	Aliases: []string{"n"},
 	Short:   "Create a new session",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if sessionNewDir == "" {
+			return errors.New("--dir is required")
+		}
 		if sessionNewAgent == "" {
 			sessionNewAgent = viper.GetString("default_agent")
 		}
 		if sessionNewAgent == "" {
-			return nil
+			return errors.New("--agent is required (or set default_agent in config)")
 		}
 		for _, a := range validAgents {
 			if sessionNewAgent == a {
@@ -41,7 +45,7 @@ var sessionNewCmd = &cobra.Command{
 }
 
 func init() {
-	sessionNewCmd.Flags().StringVar(&sessionNewDir, "dir", "", "directory to open in the session")
-	sessionNewCmd.Flags().StringVar(&sessionNewAgent, "agent", "", fmt.Sprintf("agent to use (%s)", strings.Join(validAgents, ", ")))
+	sessionNewCmd.Flags().StringVarP(&sessionNewDir, "dir", "d", "", "directory to open in the session")
+	sessionNewCmd.Flags().StringVarP(&sessionNewAgent, "agent", "a", "", fmt.Sprintf("agent to use (%s)", strings.Join(validAgents, ", ")))
 	sessionCmd.AddCommand(sessionNewCmd)
 }
