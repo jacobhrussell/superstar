@@ -2,6 +2,25 @@
 
 Superstar is a CLI for managing agent sessions.
 
+To create a new agent session:
+
+```bash
+superstar session new --agent claude --dir ~/my/proj/src --name my-feature --prompt "create my feature"
+```
+- opens a new tmux session named `my-feature`
+- creates a git worktree and branch named `my-feature`
+- initializes the selected agnet
+- sends the initial prompt
+
+To clean it up:
+
+```bash
+superstar session delete my-feature
+```
+- kills the tmux session
+- removes the worktree
+- deletes the branch
+
 ## Getting Started
 
 ### From Source
