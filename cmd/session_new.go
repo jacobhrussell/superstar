@@ -13,6 +13,7 @@ var (
 	sessionNewDir     string
 	sessionNewAgent   string
 	sessionNewProject string
+	sessionNewName    string
 )
 
 var sessionNewCmd = &cobra.Command{
@@ -54,12 +55,14 @@ var sessionNewCmd = &cobra.Command{
 		return validateAgent(sessionNewAgent)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("name:", sessionNewName)
 		fmt.Println("dir:", sessionNewDir)
 		fmt.Println("agent:", sessionNewAgent)
 	},
 }
 
 func init() {
+	sessionNewCmd.Flags().StringVarP(&sessionNewName, "name", "n", "", "name for the session")
 	sessionNewCmd.Flags().StringVarP(&sessionNewDir, "dir", "d", "", "directory to open in the session")
 	sessionNewCmd.Flags().StringVarP(&sessionNewAgent, "agent", "a", "", fmt.Sprintf("agent to use (%s)", strings.Join(validAgents, ", ")))
 	sessionNewCmd.Flags().StringVarP(&sessionNewProject, "project", "p", "", "use defaults from a named project in config")

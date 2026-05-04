@@ -10,6 +10,7 @@ func resetSessionNewState() {
 	sessionNewAgent = ""
 	sessionNewDir = ""
 	sessionNewProject = ""
+	sessionNewName = ""
 	viper.Reset()
 }
 
@@ -33,6 +34,7 @@ func TestSessionNewAgentValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(resetSessionNewState)
 
+			sessionNewName = "my-session"
 			sessionNewDir = "/tmp/test"
 			sessionNewAgent = tt.flag
 			if tt.viperValue != "" {
@@ -57,6 +59,7 @@ func TestSessionNewAgentValidation(t *testing.T) {
 func TestSessionNewDirRequired(t *testing.T) {
 	t.Cleanup(resetSessionNewState)
 
+	sessionNewName = "my-session"
 	sessionNewAgent = "claude"
 
 	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err == nil {
@@ -74,6 +77,7 @@ func TestSessionNewProjectResolvesDefaults(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
+	sessionNewName = "my-session"
 	sessionNewProject = "myproj"
 
 	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err != nil {
@@ -97,6 +101,7 @@ func TestSessionNewFlagOverridesProject(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
+	sessionNewName = "my-session"
 	sessionNewProject = "myproj"
 	sessionNewAgent = "claude"
 	sessionNewDir = "/override"
@@ -116,6 +121,7 @@ func TestSessionNewUnknownProjectErrors(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetSessionNewState)
 
+	sessionNewName = "my-session"
 	sessionNewProject = "nope"
 
 	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err == nil {
