@@ -3,10 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 var (
@@ -39,28 +42,102 @@ var sessionNewCmd = &cobra.Command{
 		if sessionNewDir == "" {
 			sessionNewDir = projectDir
 		}
-		if sessionNewDir == "" {
-			return errors.New("--dir is required (or use --project)")
-		}
-
 		if sessionNewAgent == "" {
 			sessionNewAgent = projectAgent
 		}
 		if sessionNewAgent == "" {
 			sessionNewAgent = viper.GetString("default_agent")
 		}
-		if sessionNewAgent == "" {
-			return errors.New("--agent is required (or use --project, or set default_agent in config)")
+
+		if sessionNewAgent != "" {
+			if err := validateAgent(sessionNewAgent); err != nil {
+				return err
+			}
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if anySessionFieldMissing() {
+			if isInteractiveTerm() {
+				if err := promptMissingSessionFields(); err != nil {
+					return err
+				}
+			} else {
+				if sessionNewDir == "" {
+					return errors.New("--dir is required (or use --project)")
+				}
+				if sessionNewAgent == "" {
+					return errors.New("--agent is required (or use --project, or set default_agent in config)")
+				}
+			}
 		}
 
-		return validateAgent(sessionNewAgent)
+		if err := validateAgent(sessionNewAgent); err != nil {
+			return err
+		}
+
+		fmt.Fprintln(cmd.OutOrStdout(), "name:", sessionNewName)
+		fmt.Fprintln(cmd.OutOrStdout(), "dir:", sessionNewDir)
+		fmt.Fprintln(cmd.OutOrStdout(), "agent:", sessionNewAgent)
+		fmt.Fprintln(cmd.OutOrStdout(), "prompt:", sessionNewPrompt)
+		return nil
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("name:", sessionNewName)
-		fmt.Println("dir:", sessionNewDir)
-		fmt.Println("agent:", sessionNewAgent)
-		fmt.Println("prompt:", sessionNewPrompt)
-	},
+}
+
+func anySessionFieldMissing() bool {
+	return sessionNewAgent == "" || sessionNewDir == "" || sessionNewPrompt == "" || sessionNewName == ""
+}
+
+func isInteractiveTerm() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+func promptMissingSessionFields() error {
+	var groups []*huh.Group
+
+	if sessionNewAgent == "" {
+		groups = append(groups, huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Agent").
+				Options(huh.NewOptions(validAgents...)...).
+				Filtering(true).
+				Value(&sessionNewAgent),
+		))
+	}
+	if sessionNewDir == "" {
+		groups = append(groups, huh.NewGroup(
+			huh.NewInput().
+				Title("Directory").
+				Value(&sessionNewDir).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return errors.New("directory cannot be empty")
+					}
+					return nil
+				}),
+		))
+	}
+	if sessionNewPrompt == "" {
+		groups = append(groups, huh.NewGroup(
+			huh.NewInput().
+				Title("Prompt").
+				Description("Initial prompt for the agent (optional, leave blank to skip)").
+				Value(&sessionNewPrompt),
+		))
+	}
+	if sessionNewName == "" {
+		groups = append(groups, huh.NewGroup(
+			huh.NewInput().
+				Title("Name").
+				Description("Session name (optional, leave blank to skip)").
+				Value(&sessionNewName),
+		))
+	}
+
+	if len(groups) == 0 {
+		return nil
+	}
+	return huh.NewForm(groups...).Run()
 }
 
 func init() {
