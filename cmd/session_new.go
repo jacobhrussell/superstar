@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,7 +26,7 @@ var (
 var sessionNewCmd = &cobra.Command{
 	Use:     "new",
 	Aliases: []string{"n"},
-	Short:   "Create a new session",
+	Short:   "Create a new session (tmux + optional git worktree + agent)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		var projectAgent, projectDir string
 		if sessionNewProject != "" {
@@ -56,7 +59,7 @@ var sessionNewCmd = &cobra.Command{
 		}
 		return nil
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (err error) {
 		if anySessionFieldMissing() {
 			if isInteractiveTerm() {
 				if err := promptMissingSessionFields(); err != nil {
@@ -76,10 +79,99 @@ var sessionNewCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Fprintln(cmd.OutOrStdout(), "name:", sessionNewName)
-		fmt.Fprintln(cmd.OutOrStdout(), "dir:", sessionNewDir)
-		fmt.Fprintln(cmd.OutOrStdout(), "agent:", sessionNewAgent)
-		fmt.Fprintln(cmd.OutOrStdout(), "prompt:", sessionNewPrompt)
+		if sessionNewName == "" {
+			sessionNewName = fmt.Sprintf("s-%d", time.Now().Unix())
+		}
+
+		absDir, err := filepath.Abs(sessionNewDir)
+		if err != nil {
+			return fmt.Errorf("resolve dir: %w", err)
+		}
+		sessionNewDir = absDir
+
+		cfg, err := loadConfig()
+		if err != nil {
+			return err
+		}
+		if _, exists := cfg.Sessions[sessionNewName]; exists {
+			return fmt.Errorf("session %q already exists", sessionNewName)
+		}
+		if err := tmuxAvailable(); err != nil {
+			return err
+		}
+		fullName := tmuxName(sessionNewName)
+		if tmuxHasSession(fullName) {
+			return fmt.Errorf("tmux session %q already exists", fullName)
+		}
+
+		// Optionally create a git worktree.
+		worktreePath := ""
+		branchName := ""
+		tmuxDir := sessionNewDir
+		if isGitRepo(sessionNewDir) {
+			worktreePath = sessionNewDir + "-" + sessionNewName
+			branchName = sessionNewName
+			if err := gitCreateWorktree(sessionNewDir, worktreePath, branchName); err != nil {
+				return err
+			}
+			tmuxDir = worktreePath
+			defer func() {
+				if err != nil {
+					_ = gitRemoveWorktree(sessionNewDir, worktreePath)
+					_ = gitDeleteBranch(sessionNewDir, branchName)
+				}
+			}()
+		}
+
+		// Create the tmux session.
+		if err := tmuxNewSession(fullName, tmuxDir); err != nil {
+			return err
+		}
+		defer func() {
+			if err != nil {
+				_ = tmuxKillSession(fullName)
+			}
+		}()
+
+		// Start the agent and optionally send the prompt.
+		if err := tmuxSendLine(fullName, sessionNewAgent); err != nil {
+			return err
+		}
+		if sessionNewPrompt != "" {
+			// Wait for the agent's TUI to render before typing the prompt,
+			// then pause briefly so the input is registered before submitting.
+			time.Sleep(2 * time.Second)
+			if err := tmuxSendText(fullName, sessionNewPrompt); err != nil {
+				return err
+			}
+			time.Sleep(300 * time.Millisecond)
+			if err := tmuxPressEnter(fullName); err != nil {
+				return err
+			}
+		}
+
+		// Persist.
+		cfg.Sessions[sessionNewName] = SessionConfig{
+			Project:  sessionNewProject,
+			Dir:      sessionNewDir,
+			Agent:    sessionNewAgent,
+			Worktree: worktreePath,
+			Branch:   branchName,
+		}
+		if err := saveConfig(cfg); err != nil {
+			return err
+		}
+
+		attachCmd := fmt.Sprintf("tmux attach -t %s", fullName)
+		fmt.Fprintf(cmd.OutOrStdout(), "created session %q (tmux: %s)\n", sessionNewName, fullName)
+		if worktreePath != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "worktree: %s (branch: %s)\n", worktreePath, branchName)
+		}
+		if clipErr := clipboard.WriteAll(attachCmd); clipErr == nil {
+			fmt.Fprintf(cmd.OutOrStdout(), "copied to clipboard: %s\n", attachCmd)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "attach with: %s\n", attachCmd)
+		}
 		return nil
 	},
 }
@@ -129,7 +221,7 @@ func promptMissingSessionFields() error {
 		groups = append(groups, huh.NewGroup(
 			huh.NewInput().
 				Title("Name").
-				Description("Session name (optional, leave blank to skip)").
+				Description("Session name (optional, auto-generated if blank)").
 				Value(&sessionNewName),
 		))
 	}

@@ -12,11 +12,20 @@ import (
 type Config struct {
 	DefaultAgent string                   `yaml:"default_agent,omitempty"`
 	Projects     map[string]ProjectConfig `yaml:"projects,omitempty"`
+	Sessions     map[string]SessionConfig `yaml:"sessions,omitempty"`
 }
 
 type ProjectConfig struct {
 	Dir   string `yaml:"dir"`
 	Agent string `yaml:"agent"`
+}
+
+type SessionConfig struct {
+	Project  string `yaml:"project,omitempty"`
+	Dir      string `yaml:"dir"`
+	Agent    string `yaml:"agent"`
+	Worktree string `yaml:"worktree,omitempty"`
+	Branch   string `yaml:"branch,omitempty"`
 }
 
 func loadConfig() (*Config, error) {
@@ -27,7 +36,10 @@ func loadConfig() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return &Config{Projects: map[string]ProjectConfig{}}, nil
+			return &Config{
+				Projects: map[string]ProjectConfig{},
+				Sessions: map[string]SessionConfig{},
+			}, nil
 		}
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -37,6 +49,9 @@ func loadConfig() (*Config, error) {
 	}
 	if cfg.Projects == nil {
 		cfg.Projects = map[string]ProjectConfig{}
+	}
+	if cfg.Sessions == nil {
+		cfg.Sessions = map[string]SessionConfig{}
 	}
 	return &cfg, nil
 }

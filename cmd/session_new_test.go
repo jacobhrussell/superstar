@@ -91,25 +91,6 @@ func TestSessionNewRunRequiresAgentNonInteractive(t *testing.T) {
 	}
 }
 
-func TestSessionNewRunSucceedsWithRequiredOnly(t *testing.T) {
-	t.Cleanup(resetSessionNewState)
-
-	sessionNewDir = "/tmp/test"
-	sessionNewAgent = "claude"
-	var out bytes.Buffer
-	sessionNewCmd.SetOut(&out)
-	t.Cleanup(func() { sessionNewCmd.SetOut(nil) })
-
-	if err := sessionNewCmd.RunE(sessionNewCmd, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, want := range []string{"dir: /tmp/test", "agent: claude"} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("output missing %q, got: %q", want, out.String())
-		}
-	}
-}
-
 func TestSessionNewProjectResolvesDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetSessionNewState)
