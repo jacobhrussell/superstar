@@ -17,4 +17,5 @@ go.work.sum
 # Editors / OS
 .DS_Store
 .idea/
-.vscode/
+.vscode/*
+!.vscode/launch.json
