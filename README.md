@@ -1,6 +1,6 @@
 # Superstar 
 
-Superstar is a CLI for managing agents.
+Superstar is a CLI for managing agent sessions.
 
 ## Getting Started
 
