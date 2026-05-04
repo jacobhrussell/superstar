@@ -10,32 +10,44 @@ import (
 )
 
 var (
-	sessionNewDir   string
-	sessionNewAgent string
+	sessionNewDir     string
+	sessionNewAgent   string
+	sessionNewProject string
 )
-
-var validAgents = []string{"claude", "codex", "cursor", "opencode"}
 
 var sessionNewCmd = &cobra.Command{
 	Use:     "new",
 	Aliases: []string{"n"},
 	Short:   "Create a new session",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
+		var projectAgent, projectDir string
+		if sessionNewProject != "" {
+			key := "projects." + sessionNewProject
+			if !viper.IsSet(key) {
+				return fmt.Errorf("project %q not found in config", sessionNewProject)
+			}
+			projectAgent = viper.GetString(key + ".agent")
+			projectDir = viper.GetString(key + ".dir")
+		}
+
 		if sessionNewDir == "" {
-			return errors.New("--dir is required")
+			sessionNewDir = projectDir
+		}
+		if sessionNewDir == "" {
+			return errors.New("--dir is required (or use --project)")
+		}
+
+		if sessionNewAgent == "" {
+			sessionNewAgent = projectAgent
 		}
 		if sessionNewAgent == "" {
 			sessionNewAgent = viper.GetString("default_agent")
 		}
 		if sessionNewAgent == "" {
-			return errors.New("--agent is required (or set default_agent in config)")
+			return errors.New("--agent is required (or use --project, or set default_agent in config)")
 		}
-		for _, a := range validAgents {
-			if sessionNewAgent == a {
-				return nil
-			}
-		}
-		return fmt.Errorf("--agent must be one of: %s", strings.Join(validAgents, ", "))
+
+		return validateAgent(sessionNewAgent)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("hello, superstar")
@@ -47,5 +59,6 @@ var sessionNewCmd = &cobra.Command{
 func init() {
 	sessionNewCmd.Flags().StringVarP(&sessionNewDir, "dir", "d", "", "directory to open in the session")
 	sessionNewCmd.Flags().StringVarP(&sessionNewAgent, "agent", "a", "", fmt.Sprintf("agent to use (%s)", strings.Join(validAgents, ", ")))
+	sessionNewCmd.Flags().StringVarP(&sessionNewProject, "project", "p", "", "use defaults from a named project in config")
 	sessionCmd.AddCommand(sessionNewCmd)
 }

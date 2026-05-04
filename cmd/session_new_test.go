@@ -6,6 +6,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+func resetSessionNewState() {
+	sessionNewAgent = ""
+	sessionNewDir = ""
+	sessionNewProject = ""
+	viper.Reset()
+}
+
 func TestSessionNewAgentValidation(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -24,11 +31,7 @@ func TestSessionNewAgentValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				sessionNewAgent = ""
-				sessionNewDir = ""
-				viper.Reset()
-			})
+			t.Cleanup(resetSessionNewState)
 
 			sessionNewDir = "/tmp/test"
 			sessionNewAgent = tt.flag
@@ -52,17 +55,59 @@ func TestSessionNewAgentValidation(t *testing.T) {
 }
 
 func TestSessionNewDirRequired(t *testing.T) {
-	t.Cleanup(func() {
-		sessionNewAgent = ""
-		sessionNewDir = ""
-		viper.Reset()
-	})
+	t.Cleanup(resetSessionNewState)
 
-	sessionNewDir = ""
 	sessionNewAgent = "claude"
 
-	err := sessionNewCmd.PreRunE(sessionNewCmd, nil)
-	if err == nil {
+	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err == nil {
 		t.Fatal("expected error when --dir is empty, got nil")
+	}
+}
+
+func TestSessionNewProjectResolvesDefaults(t *testing.T) {
+	t.Cleanup(resetSessionNewState)
+
+	viper.Set("projects.myproj.agent", "codex")
+	viper.Set("projects.myproj.dir", "/work/proj")
+	sessionNewProject = "myproj"
+
+	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessionNewAgent != "codex" {
+		t.Errorf("agent = %q, want %q", sessionNewAgent, "codex")
+	}
+	if sessionNewDir != "/work/proj" {
+		t.Errorf("dir = %q, want %q", sessionNewDir, "/work/proj")
+	}
+}
+
+func TestSessionNewFlagOverridesProject(t *testing.T) {
+	t.Cleanup(resetSessionNewState)
+
+	viper.Set("projects.myproj.agent", "codex")
+	viper.Set("projects.myproj.dir", "/work/proj")
+	sessionNewProject = "myproj"
+	sessionNewAgent = "claude"
+	sessionNewDir = "/override"
+
+	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessionNewAgent != "claude" {
+		t.Errorf("agent = %q, want flag value %q", sessionNewAgent, "claude")
+	}
+	if sessionNewDir != "/override" {
+		t.Errorf("dir = %q, want flag value %q", sessionNewDir, "/override")
+	}
+}
+
+func TestSessionNewUnknownProjectErrors(t *testing.T) {
+	t.Cleanup(resetSessionNewState)
+
+	sessionNewProject = "nope"
+
+	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err == nil {
+		t.Fatal("expected error for unknown project, got nil")
 	}
 }
