@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,11 +17,12 @@ import (
 )
 
 var (
-	sessionNewDir     string
-	sessionNewAgent   string
-	sessionNewProject string
-	sessionNewName    string
-	sessionNewPrompt  string
+	sessionNewDir         string
+	sessionNewAgent       string
+	sessionNewProject     string
+	sessionNewName        string
+	sessionNewPrompt      string
+	sessionNewAfterScript string
 )
 
 var sessionNewCmd = &cobra.Command{
@@ -28,7 +30,7 @@ var sessionNewCmd = &cobra.Command{
 	Aliases: []string{"n"},
 	Short:   "Create a new session (tmux + optional git worktree + agent)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		var projectAgent, projectDir string
+		var projectAgent, projectDir, projectAfterScript string
 		if sessionNewProject != "" {
 			cfg, err := loadConfig()
 			if err != nil {
@@ -40,6 +42,7 @@ var sessionNewCmd = &cobra.Command{
 			}
 			projectAgent = proj.Agent
 			projectDir = proj.Dir
+			projectAfterScript = proj.SessionAfterScript
 		}
 
 		if sessionNewDir == "" {
@@ -48,6 +51,7 @@ var sessionNewCmd = &cobra.Command{
 		if sessionNewAgent == "" {
 			sessionNewAgent = projectAgent
 		}
+		sessionNewAfterScript = projectAfterScript
 		if sessionNewAgent == "" {
 			sessionNewAgent = viper.GetString("default_agent")
 		}
@@ -162,6 +166,21 @@ var sessionNewCmd = &cobra.Command{
 			return err
 		}
 
+		if sessionNewAfterScript != "" {
+			if scriptErr := runSessionAfterScript(sessionNewAfterScript, sessionAfterScriptEnv{
+				Name:     sessionNewName,
+				TmuxName: fullName,
+				Dir:      sessionNewDir,
+				TmuxDir:  tmuxDir,
+				Agent:    sessionNewAgent,
+				Project:  sessionNewProject,
+				Worktree: worktreePath,
+				Branch:   branchName,
+			}); scriptErr != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: session-after-script failed: %v\n", scriptErr)
+			}
+		}
+
 		attachCmd := fmt.Sprintf("tmux attach -t %s", fullName)
 		fmt.Fprintf(cmd.OutOrStdout(), "created session %q (tmux: %s)\n", sessionNewName, fullName)
 		if worktreePath != "" {
@@ -230,6 +249,52 @@ func promptMissingSessionFields() error {
 		return nil
 	}
 	return huh.NewForm(groups...).Run()
+}
+
+type sessionAfterScriptEnv struct {
+	Name     string
+	TmuxName string
+	Dir      string
+	TmuxDir  string
+	Agent    string
+	Project  string
+	Worktree string
+	Branch   string
+}
+
+func runSessionAfterScript(scriptPath string, env sessionAfterScriptEnv) error {
+	resolved, err := expandHome(scriptPath)
+	if err != nil {
+		return err
+	}
+	c := exec.Command(resolved)
+	c.Env = append(os.Environ(),
+		"SUPERSTAR_SESSION_NAME="+env.Name,
+		"SUPERSTAR_TMUX_SESSION="+env.TmuxName,
+		"SUPERSTAR_SESSION_DIR="+env.Dir,
+		"SUPERSTAR_SESSION_TMUX_DIR="+env.TmuxDir,
+		"SUPERSTAR_SESSION_AGENT="+env.Agent,
+		"SUPERSTAR_SESSION_PROJECT="+env.Project,
+		"SUPERSTAR_SESSION_WORKTREE="+env.Worktree,
+		"SUPERSTAR_SESSION_BRANCH="+env.Branch,
+	)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
+
+func expandHome(p string) (string, error) {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		if p == "~" {
+			return home, nil
+		}
+		return filepath.Join(home, p[2:]), nil
+	}
+	return p, nil
 }
 
 func init() {

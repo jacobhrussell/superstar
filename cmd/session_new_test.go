@@ -14,6 +14,7 @@ func resetSessionNewState() {
 	sessionNewProject = ""
 	sessionNewName = ""
 	sessionNewPrompt = ""
+	sessionNewAfterScript = ""
 	viper.Reset()
 }
 
@@ -111,6 +112,26 @@ func TestSessionNewProjectResolvesDefaults(t *testing.T) {
 	}
 	if sessionNewDir != "/work/proj" {
 		t.Errorf("dir = %q, want %q", sessionNewDir, "/work/proj")
+	}
+}
+
+func TestSessionNewProjectResolvesAfterScript(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(resetSessionNewState)
+
+	if err := saveConfig(&Config{Projects: map[string]ProjectConfig{
+		"myproj": {Dir: "/work/proj", Agent: "codex", SessionAfterScript: "/scripts/after.sh"},
+	}}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	sessionNewProject = "myproj"
+
+	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessionNewAfterScript != "/scripts/after.sh" {
+		t.Errorf("sessionNewAfterScript = %q, want %q", sessionNewAfterScript, "/scripts/after.sh")
 	}
 }
 

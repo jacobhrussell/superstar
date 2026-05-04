@@ -10,6 +10,7 @@ import (
 func resetProjectNewState() {
 	projectNewDir = ""
 	projectNewAgent = ""
+	projectNewAfterScript = ""
 	viper.Reset()
 }
 
@@ -37,6 +38,31 @@ func TestProjectNewCreatesEntry(t *testing.T) {
 	}
 	if got.Dir != "/work/proj" || got.Agent != "claude" {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestProjectNewSavesAfterScript(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(resetProjectNewState)
+
+	projectNewDir = "/work/proj"
+	projectNewAgent = "claude"
+	projectNewAfterScript = "/scripts/after.sh"
+
+	if err := projectNewCmd.PreRunE(projectNewCmd, []string{"myproj"}); err != nil {
+		t.Fatalf("PreRunE: %v", err)
+	}
+	if err := projectNewCmd.RunE(projectNewCmd, []string{"myproj"}); err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	got := cfg.Projects["myproj"]
+	if got.SessionAfterScript != "/scripts/after.sh" {
+		t.Errorf("SessionAfterScript = %q, want %q", got.SessionAfterScript, "/scripts/after.sh")
 	}
 }
 

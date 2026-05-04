@@ -10,10 +10,12 @@ import (
 func resetProjectEditState() {
 	projectEditDir = ""
 	projectEditAgent = ""
+	projectEditAfterScript = ""
 	viper.Reset()
 	projectEditCmd.ResetFlags()
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", "")
+	projectEditCmd.Flags().StringVar(&projectEditAfterScript, "session-after-script", "", "")
 }
 
 func TestProjectEditUpdatesFlaggedFields(t *testing.T) {
@@ -75,6 +77,37 @@ func TestProjectEditPartialUpdateKeepsOtherField(t *testing.T) {
 	}
 	if got.Agent != "codex" {
 		t.Errorf("agent = %q, want %q", got.Agent, "codex")
+	}
+}
+
+func TestProjectEditUpdatesAfterScript(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(resetProjectEditState)
+
+	if err := saveConfig(&Config{Projects: map[string]ProjectConfig{
+		"myproj": {Dir: "/old", Agent: "claude"},
+	}}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := projectEditCmd.Flags().Set("session-after-script", "/scripts/after.sh"); err != nil {
+		t.Fatalf("set flag: %v", err)
+	}
+
+	if err := projectEditCmd.RunE(projectEditCmd, []string{"myproj"}); err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	got := cfg.Projects["myproj"]
+	if got.SessionAfterScript != "/scripts/after.sh" {
+		t.Errorf("SessionAfterScript = %q, want %q", got.SessionAfterScript, "/scripts/after.sh")
+	}
+	if got.Dir != "/old" || got.Agent != "claude" {
+		t.Errorf("other fields changed: %+v", got)
 	}
 }
 

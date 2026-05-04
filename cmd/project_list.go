@@ -10,11 +10,17 @@ import (
 )
 
 type projectItem struct {
-	name, agent, dir string
+	name, agent, dir, afterScript string
 }
 
-func (i projectItem) Title() string       { return i.name }
-func (i projectItem) Description() string { return fmt.Sprintf("agent: %s · dir: %s", i.agent, i.dir) }
+func (i projectItem) Title() string { return i.name }
+func (i projectItem) Description() string {
+	desc := fmt.Sprintf("agent: %s · dir: %s", i.agent, i.dir)
+	if i.afterScript != "" {
+		desc += " · session-after-script: " + i.afterScript
+	}
+	return desc
+}
 func (i projectItem) FilterValue() string { return i.name }
 
 type projectListModel struct {
@@ -54,7 +60,7 @@ func buildProjectItems(projects map[string]ProjectConfig) []list.Item {
 	items := make([]list.Item, 0, len(projects))
 	for _, name := range projectNames(projects) {
 		p := projects[name]
-		items = append(items, projectItem{name: name, agent: p.Agent, dir: p.Dir})
+		items = append(items, projectItem{name: name, agent: p.Agent, dir: p.Dir, afterScript: p.SessionAfterScript})
 	}
 	return items
 }

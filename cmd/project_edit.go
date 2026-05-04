@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	projectEditDir   string
-	projectEditAgent string
+	projectEditDir         string
+	projectEditAgent       string
+	projectEditAfterScript string
 )
 
 var projectEditCmd = &cobra.Command{
@@ -34,11 +35,12 @@ var projectEditCmd = &cobra.Command{
 		}
 
 		current := cfg.Projects[name]
-		newDir, newAgent := current.Dir, current.Agent
+		newDir, newAgent, newAfterScript := current.Dir, current.Agent, current.SessionAfterScript
 
 		dirChanged := cmd.Flags().Changed("dir")
 		agentChanged := cmd.Flags().Changed("agent")
-		anyFlag := dirChanged || agentChanged
+		afterScriptChanged := cmd.Flags().Changed("session-after-script")
+		anyFlag := dirChanged || agentChanged || afterScriptChanged
 
 		if dirChanged {
 			newDir = projectEditDir
@@ -64,6 +66,18 @@ var projectEditCmd = &cobra.Command{
 			}
 		}
 
+		if afterScriptChanged {
+			newAfterScript = projectEditAfterScript
+		} else if !anyFlag {
+			if err := huh.NewInput().
+				Title("Session-after script").
+				Description("Path to a script run after each new session (optional)").
+				Value(&newAfterScript).
+				Run(); err != nil {
+				return err
+			}
+		}
+
 		if err := validateAgent(newAgent); err != nil {
 			return err
 		}
@@ -71,7 +85,7 @@ var projectEditCmd = &cobra.Command{
 			return errors.New("directory cannot be empty")
 		}
 
-		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent}
+		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent, SessionAfterScript: newAfterScript}
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
@@ -103,5 +117,6 @@ func resolveProjectName(args []string, cfg *Config, title string) (string, error
 func init() {
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "new directory for the project")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", fmt.Sprintf("new agent for the project (%s)", strings.Join(validAgents, ", ")))
+	projectEditCmd.Flags().StringVar(&projectEditAfterScript, "session-after-script", "", "path to a script run after a session is created (empty string to clear)")
 	projectCmd.AddCommand(projectEditCmd)
 }
