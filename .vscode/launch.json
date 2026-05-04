@@ -2,12 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug superstar hello",
+      "name": "Debug superstar session new",
       "type": "go",
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}",
-      "args": ["hello"]
+      "args": ["session", "new"]
     },
     {
       "name": "Debug superstar (prompt for args)",
@@ -23,7 +23,7 @@
       "id": "cliArgs",
       "type": "promptString",
       "description": "CLI args (space-separated)",
-      "default": "hello"
+      "default": "session new"
     }
   ]
 }
