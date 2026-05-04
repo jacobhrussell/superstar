@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	projectEditDir   string
-	projectEditAgent string
+	projectEditDir    string
+	projectEditAgent  string
+	projectEditGithub string
 )
 
 var projectEditCmd = &cobra.Command{
@@ -34,11 +35,12 @@ var projectEditCmd = &cobra.Command{
 		}
 
 		current := cfg.Projects[name]
-		newDir, newAgent := current.Dir, current.Agent
+		newDir, newAgent, newGithub := current.Dir, current.Agent, current.Github
 
 		dirChanged := cmd.Flags().Changed("dir")
 		agentChanged := cmd.Flags().Changed("agent")
-		anyFlag := dirChanged || agentChanged
+		githubChanged := cmd.Flags().Changed("github")
+		anyFlag := dirChanged || agentChanged || githubChanged
 
 		if dirChanged {
 			newDir = projectEditDir
@@ -64,14 +66,37 @@ var projectEditCmd = &cobra.Command{
 			}
 		}
 
+		if githubChanged {
+			newGithub = projectEditGithub
+		} else if !anyFlag {
+			if err := huh.NewInput().
+				Title("GitHub repo (optional)").
+				Description("owner/repo, e.g. jacobhrussell/superstar").
+				Value(&newGithub).
+				Validate(func(s string) error {
+					if s == "" {
+						return nil
+					}
+					return validateGithubRepo(s)
+				}).
+				Run(); err != nil {
+				return err
+			}
+		}
+
 		if err := validateAgent(newAgent); err != nil {
 			return err
 		}
 		if newDir == "" {
 			return errors.New("directory cannot be empty")
 		}
+		if newGithub != "" {
+			if err := validateGithubRepo(newGithub); err != nil {
+				return err
+			}
+		}
 
-		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent}
+		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent, Github: newGithub}
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
@@ -103,5 +128,6 @@ func resolveProjectName(args []string, cfg *Config, title string) (string, error
 func init() {
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "new directory for the project")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", fmt.Sprintf("new agent for the project (%s)", strings.Join(validAgents, ", ")))
+	projectEditCmd.Flags().StringVarP(&projectEditGithub, "github", "g", "", "new GitHub repo for the project (owner/repo, empty to clear)")
 	projectCmd.AddCommand(projectEditCmd)
 }

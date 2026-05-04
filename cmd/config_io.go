@@ -16,8 +16,9 @@ type Config struct {
 }
 
 type ProjectConfig struct {
-	Dir   string `yaml:"dir"`
-	Agent string `yaml:"agent"`
+	Dir    string `yaml:"dir"`
+	Agent  string `yaml:"agent"`
+	Github string `yaml:"github,omitempty"`
 }
 
 type SessionConfig struct {

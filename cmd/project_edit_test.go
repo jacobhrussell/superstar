@@ -10,10 +10,12 @@ import (
 func resetProjectEditState() {
 	projectEditDir = ""
 	projectEditAgent = ""
+	projectEditGithub = ""
 	viper.Reset()
 	projectEditCmd.ResetFlags()
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", "")
+	projectEditCmd.Flags().StringVarP(&projectEditGithub, "github", "g", "", "")
 }
 
 func TestProjectEditUpdatesFlaggedFields(t *testing.T) {
