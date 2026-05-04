@@ -197,7 +197,7 @@ var sessionNewCmd = &cobra.Command{
 		}()
 
 		// Start the agent and optionally send the prompt.
-		if err := tmuxSendLine(fullName, sessionNewAgent); err != nil {
+		if err := tmuxSendLine(fullName, agentCommand(sessionNewAgent)); err != nil {
 			return err
 		}
 		if sessionNewPrompt != "" {
