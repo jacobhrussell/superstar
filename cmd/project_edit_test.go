@@ -10,11 +10,13 @@ import (
 func resetProjectEditState() {
 	projectEditDir = ""
 	projectEditAgent = ""
+	projectEditGithub = ""
 	projectEditAfterScript = ""
 	viper.Reset()
 	projectEditCmd.ResetFlags()
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", "")
+	projectEditCmd.Flags().StringVarP(&projectEditGithub, "github", "g", "", "")
 	projectEditCmd.Flags().StringVar(&projectEditAfterScript, "session-after-script", "", "")
 }
 

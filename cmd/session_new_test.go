@@ -15,6 +15,7 @@ func resetSessionNewState() {
 	sessionNewName = ""
 	sessionNewPrompt = ""
 	sessionNewAfterScript = ""
+	sessionNewPullRequest = ""
 	viper.Reset()
 }
 

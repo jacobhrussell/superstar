@@ -12,6 +12,7 @@ import (
 var (
 	projectEditDir         string
 	projectEditAgent       string
+	projectEditGithub      string
 	projectEditAfterScript string
 )
 
@@ -35,12 +36,13 @@ var projectEditCmd = &cobra.Command{
 		}
 
 		current := cfg.Projects[name]
-		newDir, newAgent, newAfterScript := current.Dir, current.Agent, current.SessionAfterScript
+		newDir, newAgent, newGithub, newAfterScript := current.Dir, current.Agent, current.Github, current.SessionAfterScript
 
 		dirChanged := cmd.Flags().Changed("dir")
 		agentChanged := cmd.Flags().Changed("agent")
+		githubChanged := cmd.Flags().Changed("github")
 		afterScriptChanged := cmd.Flags().Changed("session-after-script")
-		anyFlag := dirChanged || agentChanged || afterScriptChanged
+		anyFlag := dirChanged || agentChanged || githubChanged || afterScriptChanged
 
 		if dirChanged {
 			newDir = projectEditDir
@@ -66,6 +68,24 @@ var projectEditCmd = &cobra.Command{
 			}
 		}
 
+		if githubChanged {
+			newGithub = projectEditGithub
+		} else if !anyFlag {
+			if err := huh.NewInput().
+				Title("GitHub repo (optional)").
+				Description("owner/repo, e.g. jacobhrussell/superstar").
+				Value(&newGithub).
+				Validate(func(s string) error {
+					if s == "" {
+						return nil
+					}
+					return validateGithubRepo(s)
+				}).
+				Run(); err != nil {
+				return err
+			}
+		}
+
 		if afterScriptChanged {
 			newAfterScript = projectEditAfterScript
 		} else if !anyFlag {
@@ -84,8 +104,13 @@ var projectEditCmd = &cobra.Command{
 		if newDir == "" {
 			return errors.New("directory cannot be empty")
 		}
+		if newGithub != "" {
+			if err := validateGithubRepo(newGithub); err != nil {
+				return err
+			}
+		}
 
-		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent, SessionAfterScript: newAfterScript}
+		cfg.Projects[name] = ProjectConfig{Dir: newDir, Agent: newAgent, Github: newGithub, SessionAfterScript: newAfterScript}
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
@@ -117,6 +142,7 @@ func resolveProjectName(args []string, cfg *Config, title string) (string, error
 func init() {
 	projectEditCmd.Flags().StringVarP(&projectEditDir, "dir", "d", "", "new directory for the project")
 	projectEditCmd.Flags().StringVarP(&projectEditAgent, "agent", "a", "", fmt.Sprintf("new agent for the project (%s)", strings.Join(validAgents, ", ")))
+	projectEditCmd.Flags().StringVarP(&projectEditGithub, "github", "g", "", "new GitHub repo for the project (owner/repo, empty to clear)")
 	projectEditCmd.Flags().StringVar(&projectEditAfterScript, "session-after-script", "", "path to a script run after a session is created (empty string to clear)")
 	projectCmd.AddCommand(projectEditCmd)
 }

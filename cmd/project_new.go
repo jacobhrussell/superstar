@@ -3,15 +3,26 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
+var githubRepoPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
+func validateGithubRepo(s string) error {
+	if !githubRepoPattern.MatchString(s) {
+		return errors.New("github repo must be in owner/repo form")
+	}
+	return nil
+}
+
 var (
 	projectNewDir         string
 	projectNewAgent       string
+	projectNewGithub      string
 	projectNewAfterScript string
 )
 
@@ -38,9 +49,9 @@ var projectNewCmd = &cobra.Command{
 			return err
 		}
 
-		var name, dir, agent, afterScript string
+		var name, dir, agent, github, afterScript string
 		if isInteractive(args) {
-			name, dir, agent, afterScript, err = promptProject(cfg.Projects)
+			name, dir, agent, github, afterScript, err = promptProject(cfg.Projects)
 			if err != nil {
 				return err
 			}
@@ -48,6 +59,7 @@ var projectNewCmd = &cobra.Command{
 			name = args[0]
 			dir = projectNewDir
 			agent = projectNewAgent
+			github = projectNewGithub
 			afterScript = projectNewAfterScript
 		}
 
@@ -57,8 +69,13 @@ var projectNewCmd = &cobra.Command{
 		if _, exists := cfg.Projects[name]; exists {
 			return fmt.Errorf("project %q already exists", name)
 		}
+		if github != "" {
+			if err := validateGithubRepo(github); err != nil {
+				return err
+			}
+		}
 
-		cfg.Projects[name] = ProjectConfig{Dir: dir, Agent: agent, SessionAfterScript: afterScript}
+		cfg.Projects[name] = ProjectConfig{Dir: dir, Agent: agent, Github: github, SessionAfterScript: afterScript}
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
@@ -70,10 +87,10 @@ var projectNewCmd = &cobra.Command{
 }
 
 func isInteractive(args []string) bool {
-	return len(args) == 0 && projectNewDir == "" && projectNewAgent == "" && projectNewAfterScript == ""
+	return len(args) == 0 && projectNewDir == "" && projectNewAgent == "" && projectNewGithub == "" && projectNewAfterScript == ""
 }
 
-func promptProject(existing map[string]ProjectConfig) (name, dir, agent, afterScript string, err error) {
+func promptProject(existing map[string]ProjectConfig) (name, dir, agent, github, afterScript string, err error) {
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -103,6 +120,18 @@ func promptProject(existing map[string]ProjectConfig) (name, dir, agent, afterSc
 		),
 		huh.NewGroup(
 			huh.NewInput().
+				Title("GitHub repo (optional)").
+				Description("owner/repo, e.g. jacobhrussell/superstar").
+				Value(&github).
+				Validate(func(s string) error {
+					if s == "" {
+						return nil
+					}
+					return validateGithubRepo(s)
+				}),
+		),
+		huh.NewGroup(
+			huh.NewInput().
 				Title("Session-after script").
 				Description("Path to a script run after each new session (optional)").
 				Value(&afterScript),
@@ -124,6 +153,7 @@ func validateNewProjectName(name string, existing map[string]ProjectConfig) erro
 func init() {
 	projectNewCmd.Flags().StringVarP(&projectNewDir, "dir", "d", "", "directory for the project")
 	projectNewCmd.Flags().StringVarP(&projectNewAgent, "agent", "a", "", fmt.Sprintf("agent for the project (%s)", strings.Join(validAgents, ", ")))
+	projectNewCmd.Flags().StringVarP(&projectNewGithub, "github", "g", "", "GitHub repo for the project (owner/repo)")
 	projectNewCmd.Flags().StringVar(&projectNewAfterScript, "session-after-script", "", "path to a script run after a session is created")
 	projectCmd.AddCommand(projectNewCmd)
 }

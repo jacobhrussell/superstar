@@ -12,6 +12,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/term"
 )
@@ -23,6 +24,7 @@ var (
 	sessionNewName        string
 	sessionNewPrompt      string
 	sessionNewAfterScript string
+	sessionNewPullRequest string
 )
 
 var sessionNewCmd = &cobra.Command{
@@ -30,8 +32,34 @@ var sessionNewCmd = &cobra.Command{
 	Aliases: []string{"n"},
 	Short:   "Create a new session (tmux + optional git worktree + agent)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if sessionNewPullRequest != "" && sessionNewProject != "" {
+			return errors.New("--pull-request cannot be combined with --project")
+		}
+
 		var projectAgent, projectDir, projectAfterScript string
-		if sessionNewProject != "" {
+		if sessionNewPullRequest != "" {
+			pr, err := parsePRURL(sessionNewPullRequest)
+			if err != nil {
+				return err
+			}
+			cfg, err := loadConfig()
+			if err != nil {
+				return fmt.Errorf("could not load config: %w", err)
+			}
+			name, proj, found := findProjectByGithub(cfg.Projects, pr.ownerRepo())
+			if !found {
+				return fmt.Errorf(
+					"--pull-request is only supported for projects with a configured GitHub repo. "+
+						"No project matches %s.\n"+
+						"Run `superstar project new` (or `superstar project edit <name>`) and set --github to %s.",
+					pr.ownerRepo(), pr.ownerRepo(),
+				)
+			}
+			sessionNewProject = name
+			projectAgent = proj.Agent
+			projectDir = proj.Dir
+			projectAfterScript = proj.SessionAfterScript
+		} else if sessionNewProject != "" {
 			cfg, err := loadConfig()
 			if err != nil {
 				return fmt.Errorf("could not load config: %w", err)
@@ -83,8 +111,17 @@ var sessionNewCmd = &cobra.Command{
 			return err
 		}
 
+		var pr prRef
+		if sessionNewPullRequest != "" {
+			pr, _ = parsePRURL(sessionNewPullRequest)
+		}
+
 		if sessionNewName == "" {
-			sessionNewName = fmt.Sprintf("s-%d", time.Now().Unix())
+			if sessionNewPullRequest != "" {
+				sessionNewName = "pr-" + pr.Number
+			} else {
+				sessionNewName = fmt.Sprintf("s-%d", time.Now().Unix())
+			}
 		}
 
 		absDir, err := filepath.Abs(sessionNewDir)
@@ -112,7 +149,29 @@ var sessionNewCmd = &cobra.Command{
 		worktreePath := ""
 		branchName := ""
 		tmuxDir := sessionNewDir
-		if isGitRepo(sessionNewDir) {
+		if sessionNewPullRequest != "" {
+			if !isGitRepo(sessionNewDir) {
+				return fmt.Errorf("project dir %s is not a git repo; cannot use --pull-request", sessionNewDir)
+			}
+			prBranch, err := ghPRHeadBranch(pr)
+			if err != nil {
+				return err
+			}
+			if err := gitFetchPRBranch(sessionNewDir, pr.Number, prBranch); err != nil {
+				return err
+			}
+			worktreePath = sessionNewDir + "-" + sessionNewName
+			branchName = prBranch
+			if err := gitAddWorktree(sessionNewDir, worktreePath, prBranch); err != nil {
+				return err
+			}
+			tmuxDir = worktreePath
+			defer func() {
+				if err != nil {
+					_ = gitRemoveWorktree(sessionNewDir, worktreePath)
+				}
+			}()
+		} else if isGitRepo(sessionNewDir) {
 			worktreePath = sessionNewDir + "-" + sessionNewName
 			branchName = sessionNewName
 			if err := gitCreateWorktree(sessionNewDir, worktreePath, branchName); err != nil {
@@ -303,5 +362,12 @@ func init() {
 	sessionNewCmd.Flags().StringVarP(&sessionNewAgent, "agent", "a", "", fmt.Sprintf("agent to use (%s)", strings.Join(validAgents, ", ")))
 	sessionNewCmd.Flags().StringVarP(&sessionNewProject, "project", "p", "", "use defaults from a named project in config")
 	sessionNewCmd.Flags().StringVar(&sessionNewPrompt, "prompt", "", "initial prompt to send to the agent")
+	sessionNewCmd.Flags().StringVar(&sessionNewPullRequest, "pull-request", "", "GitHub PR URL — match a configured project and check out the PR's branch in a new worktree (alias: --pr)")
+	sessionNewCmd.Flags().SetNormalizeFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
+		if name == "pr" {
+			name = "pull-request"
+		}
+		return pflag.NormalizedName(name)
+	})
 	sessionCmd.AddCommand(sessionNewCmd)
 }
