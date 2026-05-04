@@ -54,7 +54,6 @@ var sessionNewCmd = &cobra.Command{
 		return validateAgent(sessionNewAgent)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("hello, superstar")
 		fmt.Println("dir:", sessionNewDir)
 		fmt.Println("agent:", sessionNewAgent)
 	},
