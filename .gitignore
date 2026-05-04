@@ -19,3 +19,6 @@ go.work.sum
 .idea/
 .vscode/*
 !.vscode/launch.json
+
+# ai
+.claude
