@@ -3,8 +3,8 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,19 +27,14 @@ func init() {
 }
 
 func initConfig() {
-	home, err := os.UserHomeDir()
+	path, err := configPath()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "warning: could not resolve home directory:", err)
 		return
 	}
-	viper.AddConfigPath(filepath.Join(home, ".config", "superstar"))
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
+	viper.SetConfigFile(path)
 
-	if err := viper.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
-			fmt.Fprintln(os.Stderr, "warning: failed to read config:", err)
-		}
+	if err := viper.ReadInConfig(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		fmt.Fprintln(os.Stderr, "warning: failed to read config:", err)
 	}
 }
