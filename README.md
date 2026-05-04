@@ -13,7 +13,7 @@ go install .
 
 ## Configuration
 
-`superstar` optionally reads a YAML config from `~/.config/superstar/config.yaml`. If the file doesn't exist, defaults apply.
+`superstar` optionally reads a YAML config from `~/.config/superstar/config.yaml`.
 
 ```yaml
 # ~/.config/superstar/config.yaml
