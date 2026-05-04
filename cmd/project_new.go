@@ -20,9 +20,10 @@ func validateGithubRepo(s string) error {
 }
 
 var (
-	projectNewDir    string
-	projectNewAgent  string
-	projectNewGithub string
+	projectNewDir         string
+	projectNewAgent       string
+	projectNewGithub      string
+	projectNewAfterScript string
 )
 
 var projectNewCmd = &cobra.Command{
@@ -48,9 +49,9 @@ var projectNewCmd = &cobra.Command{
 			return err
 		}
 
-		var name, dir, agent, github string
+		var name, dir, agent, github, afterScript string
 		if isInteractive(args) {
-			name, dir, agent, github, err = promptProject(cfg.Projects)
+			name, dir, agent, github, afterScript, err = promptProject(cfg.Projects)
 			if err != nil {
 				return err
 			}
@@ -59,6 +60,7 @@ var projectNewCmd = &cobra.Command{
 			dir = projectNewDir
 			agent = projectNewAgent
 			github = projectNewGithub
+			afterScript = projectNewAfterScript
 		}
 
 		if name == "" {
@@ -73,7 +75,7 @@ var projectNewCmd = &cobra.Command{
 			}
 		}
 
-		cfg.Projects[name] = ProjectConfig{Dir: dir, Agent: agent, Github: github}
+		cfg.Projects[name] = ProjectConfig{Dir: dir, Agent: agent, Github: github, SessionAfterScript: afterScript}
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
@@ -85,10 +87,10 @@ var projectNewCmd = &cobra.Command{
 }
 
 func isInteractive(args []string) bool {
-	return len(args) == 0 && projectNewDir == "" && projectNewAgent == "" && projectNewGithub == ""
+	return len(args) == 0 && projectNewDir == "" && projectNewAgent == "" && projectNewGithub == "" && projectNewAfterScript == ""
 }
 
-func promptProject(existing map[string]ProjectConfig) (name, dir, agent, github string, err error) {
+func promptProject(existing map[string]ProjectConfig) (name, dir, agent, github, afterScript string, err error) {
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -128,6 +130,12 @@ func promptProject(existing map[string]ProjectConfig) (name, dir, agent, github 
 					return validateGithubRepo(s)
 				}),
 		),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Session-after script").
+				Description("Path to a script run after each new session (optional)").
+				Value(&afterScript),
+		),
 	).Run()
 	return
 }
@@ -146,5 +154,6 @@ func init() {
 	projectNewCmd.Flags().StringVarP(&projectNewDir, "dir", "d", "", "directory for the project")
 	projectNewCmd.Flags().StringVarP(&projectNewAgent, "agent", "a", "", fmt.Sprintf("agent for the project (%s)", strings.Join(validAgents, ", ")))
 	projectNewCmd.Flags().StringVarP(&projectNewGithub, "github", "g", "", "GitHub repo for the project (owner/repo)")
+	projectNewCmd.Flags().StringVar(&projectNewAfterScript, "session-after-script", "", "path to a script run after a session is created")
 	projectCmd.AddCommand(projectNewCmd)
 }

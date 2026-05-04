@@ -10,7 +10,7 @@ import (
 )
 
 type projectItem struct {
-	name, agent, dir, github string
+	name, agent, dir, github, afterScript string
 }
 
 func (i projectItem) Title() string { return i.name }
@@ -18,6 +18,9 @@ func (i projectItem) Description() string {
 	desc := fmt.Sprintf("agent: %s · dir: %s", i.agent, i.dir)
 	if i.github != "" {
 		desc += " · github: " + i.github
+	}
+	if i.afterScript != "" {
+		desc += " · session-after-script: " + i.afterScript
 	}
 	return desc
 }
@@ -60,7 +63,7 @@ func buildProjectItems(projects map[string]ProjectConfig) []list.Item {
 	items := make([]list.Item, 0, len(projects))
 	for _, name := range projectNames(projects) {
 		p := projects[name]
-		items = append(items, projectItem{name: name, agent: p.Agent, dir: p.Dir, github: p.Github})
+		items = append(items, projectItem{name: name, agent: p.Agent, dir: p.Dir, github: p.Github, afterScript: p.SessionAfterScript})
 	}
 	return items
 }
