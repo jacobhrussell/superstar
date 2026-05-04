@@ -22,12 +22,16 @@ var sessionNewCmd = &cobra.Command{
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		var projectAgent, projectDir string
 		if sessionNewProject != "" {
-			key := "projects." + sessionNewProject
-			if !viper.IsSet(key) {
+			cfg, err := loadConfig()
+			if err != nil {
+				return fmt.Errorf("could not load config: %w", err)
+			}
+			proj, ok := cfg.Projects[sessionNewProject]
+			if !ok {
 				return fmt.Errorf("project %q not found in config", sessionNewProject)
 			}
-			projectAgent = viper.GetString(key + ".agent")
-			projectDir = viper.GetString(key + ".dir")
+			projectAgent = proj.Agent
+			projectDir = proj.Dir
 		}
 
 		if sessionNewDir == "" {

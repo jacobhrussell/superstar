@@ -65,10 +65,15 @@ func TestSessionNewDirRequired(t *testing.T) {
 }
 
 func TestSessionNewProjectResolvesDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetSessionNewState)
 
-	viper.Set("projects.myproj.agent", "codex")
-	viper.Set("projects.myproj.dir", "/work/proj")
+	if err := saveConfig(&Config{Projects: map[string]ProjectConfig{
+		"myproj": {Dir: "/work/proj", Agent: "codex"},
+	}}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
 	sessionNewProject = "myproj"
 
 	if err := sessionNewCmd.PreRunE(sessionNewCmd, nil); err != nil {
@@ -83,10 +88,15 @@ func TestSessionNewProjectResolvesDefaults(t *testing.T) {
 }
 
 func TestSessionNewFlagOverridesProject(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetSessionNewState)
 
-	viper.Set("projects.myproj.agent", "codex")
-	viper.Set("projects.myproj.dir", "/work/proj")
+	if err := saveConfig(&Config{Projects: map[string]ProjectConfig{
+		"myproj": {Dir: "/work/proj", Agent: "codex"},
+	}}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
 	sessionNewProject = "myproj"
 	sessionNewAgent = "claude"
 	sessionNewDir = "/override"
@@ -103,6 +113,7 @@ func TestSessionNewFlagOverridesProject(t *testing.T) {
 }
 
 func TestSessionNewUnknownProjectErrors(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetSessionNewState)
 
 	sessionNewProject = "nope"

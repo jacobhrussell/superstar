@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,8 +14,7 @@ func resetProjectNewState() {
 }
 
 func TestProjectNewCreatesEntry(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetProjectNewState)
 
 	projectNewDir = "/work/proj"
@@ -31,26 +27,28 @@ func TestProjectNewCreatesEntry(t *testing.T) {
 		t.Fatalf("RunE: %v", err)
 	}
 
-	path := filepath.Join(home, ".config", "superstar", "config.yaml")
-	data, err := os.ReadFile(path)
+	cfg, err := loadConfig()
 	if err != nil {
-		t.Fatalf("config not written: %v", err)
+		t.Fatalf("loadConfig: %v", err)
 	}
-	content := string(data)
-	for _, want := range []string{"myproj", "/work/proj", "claude"} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing %q, got:\n%s", want, content)
-		}
+	got, ok := cfg.Projects["myproj"]
+	if !ok {
+		t.Fatalf("project not saved")
+	}
+	if got.Dir != "/work/proj" || got.Agent != "claude" {
+		t.Errorf("got %+v", got)
 	}
 }
 
 func TestProjectNewRefusesDuplicate(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(resetProjectNewState)
 
-	viper.Set("projects.myproj.agent", "claude")
-	viper.Set("projects.myproj.dir", "/old")
+	if err := saveConfig(&Config{Projects: map[string]ProjectConfig{
+		"myproj": {Dir: "/old", Agent: "claude"},
+	}}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 
 	projectNewDir = "/new"
 	projectNewAgent = "codex"
@@ -64,94 +62,31 @@ func TestProjectNewRefusesDuplicate(t *testing.T) {
 	}
 }
 
-func TestPromptProjectHappyPath(t *testing.T) {
-	t.Cleanup(resetProjectNewState)
-
-	in := strings.NewReader("my-proj\n/work/proj\nclaude\n")
-	var out bytes.Buffer
-
-	name, dir, agent, err := promptProject(in, &out)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if name != "my-proj" {
-		t.Errorf("name = %q, want %q", name, "my-proj")
-	}
-	if dir != "/work/proj" {
-		t.Errorf("dir = %q, want %q", dir, "/work/proj")
-	}
-	if agent != "claude" {
-		t.Errorf("agent = %q, want %q", agent, "claude")
-	}
-}
-
-func TestPromptProjectRepromptsOnInvalidAgent(t *testing.T) {
-	t.Cleanup(resetProjectNewState)
-
-	in := strings.NewReader("my-proj\n/work/proj\ngpt\nclaude\n")
-	var out bytes.Buffer
-
-	_, _, agent, err := promptProject(in, &out)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if agent != "claude" {
-		t.Errorf("agent = %q, want %q after re-prompt", agent, "claude")
-	}
-	if !strings.Contains(out.String(), "invalid agent") {
-		t.Errorf("expected 'invalid agent' message, got: %q", out.String())
-	}
-}
-
-func TestPromptProjectRepromptsOnDuplicateName(t *testing.T) {
-	t.Cleanup(resetProjectNewState)
-
-	viper.Set("projects.taken.agent", "claude")
-	viper.Set("projects.taken.dir", "/old")
-
-	in := strings.NewReader("taken\nfresh\n/work/proj\nclaude\n")
-	var out bytes.Buffer
-
-	name, _, _, err := promptProject(in, &out)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if name != "fresh" {
-		t.Errorf("name = %q, want %q after re-prompt", name, "fresh")
-	}
-	if !strings.Contains(out.String(), "already exists") {
-		t.Errorf("expected duplicate-name message, got: %q", out.String())
-	}
-}
-
-func TestProjectNewInteractiveMode(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Cleanup(resetProjectNewState)
-
-	in := strings.NewReader("interactive-proj\n/tmp/interactive\ncodex\n")
-	var out bytes.Buffer
-	projectNewCmd.SetIn(in)
-	projectNewCmd.SetOut(&out)
-	t.Cleanup(func() {
-		projectNewCmd.SetIn(nil)
-		projectNewCmd.SetOut(nil)
-	})
-
-	if err := projectNewCmd.RunE(projectNewCmd, nil); err != nil {
-		t.Fatalf("RunE: %v", err)
+func TestValidateNewProjectName(t *testing.T) {
+	existing := map[string]ProjectConfig{
+		"taken": {Dir: "/x", Agent: "claude"},
 	}
 
-	path := filepath.Join(home, ".config", "superstar", "config.yaml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("config not written: %v", err)
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"empty string", "", true},
+		{"whitespace only", "   ", true},
+		{"duplicate", "taken", true},
+		{"valid new name", "fresh", false},
 	}
-	content := string(data)
-	for _, want := range []string{"interactive-proj", "/tmp/interactive", "codex"} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing %q, got:\n%s", want, content)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateNewProjectName(tt.input, existing)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

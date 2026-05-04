@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -35,11 +32,14 @@ var projectNewCmd = &cobra.Command{
 		return validateAgent(projectNewAgent)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var name, dir, agent string
+		cfg, err := loadConfig()
+		if err != nil {
+			return err
+		}
 
+		var name, dir, agent string
 		if isInteractive(args) {
-			var err error
-			name, dir, agent, err = promptProject(cmd.InOrStdin(), cmd.OutOrStdout())
+			name, dir, agent, err = promptProject(cfg.Projects)
 			if err != nil {
 				return err
 			}
@@ -52,32 +52,16 @@ var projectNewCmd = &cobra.Command{
 		if name == "" {
 			return errors.New("project name cannot be empty")
 		}
-
-		key := "projects." + name
-		if viper.IsSet(key) {
+		if _, exists := cfg.Projects[name]; exists {
 			return fmt.Errorf("project %q already exists", name)
 		}
 
-		cfgDir, err := configDir()
-		if err != nil {
-			return fmt.Errorf("could not resolve home directory: %w", err)
-		}
-		path, err := configPath()
-		if err != nil {
-			return fmt.Errorf("could not resolve home directory: %w", err)
-		}
-		if err := os.MkdirAll(cfgDir, 0o755); err != nil {
-			return fmt.Errorf("could not create config directory: %w", err)
+		cfg.Projects[name] = ProjectConfig{Dir: dir, Agent: agent}
+		if err := saveConfig(cfg); err != nil {
+			return err
 		}
 
-		viper.Set(key+".dir", dir)
-		viper.Set(key+".agent", agent)
-
-		viper.SetConfigFile(path)
-		if err := viper.WriteConfig(); err != nil {
-			return fmt.Errorf("could not write config: %w", err)
-		}
-
+		path, _ := configPath()
 		fmt.Fprintf(cmd.OutOrStdout(), "created project %q in %s\n", name, path)
 		return nil
 	},
@@ -87,62 +71,42 @@ func isInteractive(args []string) bool {
 	return len(args) == 0 && projectNewDir == "" && projectNewAgent == ""
 }
 
-func promptProject(in io.Reader, out io.Writer) (name, dir, agent string, err error) {
-	reader := bufio.NewReader(in)
-
-	for {
-		if _, err = fmt.Fprint(out, "Project name: "); err != nil {
-			return
-		}
-		name, err = readLine(reader)
-		if err != nil {
-			return
-		}
-		if name == "" {
-			err = errors.New("project name cannot be empty")
-			return
-		}
-		if !viper.IsSet("projects." + name) {
-			break
-		}
-		fmt.Fprintf(out, "project %q already exists, try a different name\n", name)
-	}
-
-	fmt.Fprint(out, "Directory: ")
-	dir, err = readLine(reader)
-	if err != nil {
-		return
-	}
-	if dir == "" {
-		err = errors.New("directory cannot be empty")
-		return
-	}
-
-	for {
-		fmt.Fprintf(out, "Agent (%s): ", strings.Join(validAgents, "/"))
-		agent, err = readLine(reader)
-		if err != nil {
-			return
-		}
-		if agent == "" {
-			err = errors.New("agent cannot be empty")
-			return
-		}
-		if validateAgent(agent) == nil {
-			break
-		}
-		fmt.Fprintln(out, "invalid agent, try again")
-	}
-
+func promptProject(existing map[string]ProjectConfig) (name, dir, agent string, err error) {
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Project name").
+				Value(&name).
+				Validate(func(s string) error {
+					return validateNewProjectName(s, existing)
+				}),
+			huh.NewInput().
+				Title("Directory").
+				Value(&dir).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return errors.New("directory cannot be empty")
+					}
+					return nil
+				}),
+			huh.NewSelect[string]().
+				Title("Agent").
+				Options(huh.NewOptions(validAgents...)...).
+				Filtering(true).
+				Value(&agent),
+		),
+	).Run()
 	return
 }
 
-func readLine(r *bufio.Reader) (string, error) {
-	line, err := r.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", err
+func validateNewProjectName(name string, existing map[string]ProjectConfig) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("name cannot be empty")
 	}
-	return strings.TrimSpace(line), nil
+	if _, exists := existing[name]; exists {
+		return fmt.Errorf("project %q already exists", name)
+	}
+	return nil
 }
 
 func init() {
