@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -18,6 +19,9 @@ var sessionNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a new session",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if sessionNewAgent == "" {
+			sessionNewAgent = viper.GetString("default_agent")
+		}
 		if sessionNewAgent == "" {
 			return nil
 		}
