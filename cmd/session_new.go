@@ -16,8 +16,9 @@ var (
 var validAgents = []string{"claude", "codex", "cursor", "opencode"}
 
 var sessionNewCmd = &cobra.Command{
-	Use:   "new",
-	Short: "Create a new session",
+	Use:     "new",
+	Aliases: []string{"n"},
+	Short:   "Create a new session",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if sessionNewAgent == "" {
 			sessionNewAgent = viper.GetString("default_agent")
