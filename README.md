@@ -27,7 +27,23 @@ superstar session delete my-feature
 
 ```bash
 git clone https://github.com/jacobhrussell/superstar.git
+cd superstar
 go install .
+```
+
+`go install` drops the binary in `$(go env GOPATH)/bin` (default `~/go/bin`). If `superstar` is not found after install, that directory is not on your `PATH`. Add it:
+
+```bash
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+Persist by appending the line to your shell rc (`~/.zshrc`, `~/.bashrc`, etc.) and reloading.
+
+Alternatively, build a binary in the current directory and run it directly or move it onto your `PATH`:
+
+```bash
+go build -o superstar .
+./superstar session new ...
 ```
 
 ## Configuration
